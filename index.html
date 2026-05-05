@@ -37,8 +37,24 @@
                     </div>
                 </header>
                 <main>
-                    <router-view></router-view>
+                    <router-view v-slot="{ Component, route }">
+                        <transition name="route-slide" mode="out-in">
+                            <div :key="route.fullPath" class="route-view">
+                                <component :is="Component"></component>
+                            </div>
+                        </transition>
+                    </router-view>
                 </main>
+                <transition name="toast-pop">
+                    <aside
+                        v-if="store.toast.value"
+                        class="toast"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        {{ store.toast.value.message }}
+                    </aside>
+                </transition>
             </div>
         </template>
     </body>

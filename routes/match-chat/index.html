@@ -39,7 +39,7 @@
     </div>
 
     <p v-if="store.messagesLoading.value"><em>Loading messages...</em></p>
-    <ul v-else class="messages">
+    <transition-group v-else name="message-list" tag="ul" class="messages">
         <message-bubble
             v-for="message in store.sortedMessages.value"
             :key="message.url"
@@ -47,11 +47,14 @@
             :mine="message.mine"
             :sender-name="store.profileNames.value[message.actor] || 'Player'"
         ></message-bubble>
-    </ul>
+    </transition-group>
     <p v-if="!store.messagesLoading.value && !store.sortedMessages.value.length" class="empty">No messages yet. Start coordinating with the group.</p>
     <form class="composer" @submit.prevent="store.sendMessage()">
         <input v-model.trim="store.messageText.value" type="text" placeholder="Message the players in this match" />
-        <button :disabled="!store.messageText.value || store.sendingMessage.value || !store.chatReady.value">
+        <button
+            :class="{ 'is-sending': store.sendingMessage.value }"
+            :disabled="!store.messageText.value || store.sendingMessage.value || !store.chatReady.value"
+        >
             {{ store.sendingMessage.value ? "Sending..." : "Send" }}
         </button>
     </form>

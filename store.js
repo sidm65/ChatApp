@@ -202,11 +202,13 @@ function createCourtConnectStore() {
   const sendingMessage = ref(false);
   const joiningMatchId = ref("");
   const deletingMatchId = ref("");
+  const toast = ref(null);
   const profileError = ref("");
   const profileLoaded = ref(false);
   const selectedProfilePhoto = ref(null);
   const selectedProfilePhotoName = ref("");
   const removeProfilePhoto = ref(false);
+  let toastTimeoutId = 0;
 
   const { objects: profileObjects, isFirstPoll: profilesLoading, poll: pollProfiles } =
     useGraffitiDiscover([profileChannel], profileSchema);
@@ -432,6 +434,38 @@ function createCourtConnectStore() {
     );
   });
 
+  const matchRatingValid = computed(() => {
+    const rating = Number(matchForm.value.rating);
+    return Number.isFinite(rating) && rating >= 1 && rating <= 16;
+  });
+
+  const matchCostValid = computed(() => {
+    const cost = Number(matchForm.value.costPerSpot);
+    return Number.isFinite(cost) && cost >= 0;
+  });
+
+  const matchFormProgress = computed(() => {
+    const completed = [
+      matchRatingValid.value,
+      !!matchForm.value.date,
+      !!matchForm.value.time,
+      matchCostValid.value,
+    ].filter(Boolean).length;
+
+    return completed / 4;
+  });
+
+  const matchFormProgressPercent = computed(() => {
+    return Math.round(matchFormProgress.value * 100);
+  });
+
+  const matchFormProgressLabel = computed(() => {
+    const completedSteps = Math.round(matchFormProgress.value * 4);
+    return canPostMatch.value
+      ? "All core details are ready to post."
+      : `${completedSteps} of 4 core details complete`;
+  });
+
   watch(
     myProfile,
     (profile) => {
@@ -495,6 +529,18 @@ function createCourtConnectStore() {
 
   async function refreshMatches() {
     await pollMatches();
+  }
+
+  function showToast(message) {
+    toast.value = {
+      id: Date.now(),
+      message,
+    };
+
+    window.clearTimeout(toastTimeoutId);
+    toastTimeoutId = window.setTimeout(() => {
+      toast.value = null;
+    }, 2200);
   }
 
   async function saveProfile() {
@@ -666,6 +712,8 @@ function createCourtConnectStore() {
 
     postingMatch.value = true;
     try {
+      const postedSport = matchForm.value.sport;
+      const postedLocation = matchForm.value.location;
       await graffiti.post(
         {
           value: buildMatchValue(matchForm.value),
@@ -674,6 +722,7 @@ function createCourtConnectStore() {
         session.value,
       );
       matchForm.value = emptyMatchForm();
+      showToast(`${clipName(postedSport)} match posted for ${postedLocation}.`);
     } finally {
       postingMatch.value = false;
     }
@@ -726,6 +775,7 @@ function createCourtConnectStore() {
     sendingMessage,
     joiningMatchId,
     deletingMatchId,
+    toast,
     openingChatFor,
     pendingMatchId,
     profileError,
@@ -758,6 +808,11 @@ function createCourtConnectStore() {
     sortedMessages,
     matchCards,
     canPostMatch,
+    matchRatingValid,
+    matchCostValid,
+    matchFormProgress,
+    matchFormProgressPercent,
+    matchFormProgressLabel,
     getProfileByActor,
     handleProfilePhotoSelect,
     markProfilePhotoForRemoval,
@@ -765,6 +820,7 @@ function createCourtConnectStore() {
     refreshProfiles,
     refreshChats,
     refreshMatches,
+    showToast,
     saveProfile,
     openChat,
     openMatchChat,
