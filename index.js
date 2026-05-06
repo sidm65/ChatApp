@@ -111,6 +111,10 @@ function setup() {
     if (!session.value) {
       return;
     }
+    const confirmed = window.confirm("Log out of Court Connect?");
+    if (!confirmed) {
+      return;
+    }
     await graffiti.logout(session.value);
   }
 

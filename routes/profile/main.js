@@ -1,14 +1,23 @@
 import { onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useCourtConnectStore } from "../../store.js";
 
 function setup() {
   const store = useCourtConnectStore();
+  const router = useRouter();
 
   onMounted(() => {
     store.refreshProfiles();
   });
 
-  return { store };
+  async function handleSaveProfile() {
+    const result = await store.saveProfile();
+    if (result.ok && result.created) {
+      router.push("/matches");
+    }
+  }
+
+  return { store, handleSaveProfile };
 }
 
 export default async () => ({

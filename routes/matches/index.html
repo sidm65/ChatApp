@@ -4,108 +4,198 @@
     <router-link class="button-link" to="/profile">Go to profile</router-link>
 </section>
 
-<section v-else class="page-grid">
+<section v-else class="page-grid matches-grid">
     <section
         class="card page match-form-card"
-        :class="{ 'is-ready': store.canPostMatch.value }"
+        :class="{ 'is-ready': store.canPostMatch.value, collapsed: store.postMatchCollapsed.value }"
     >
         <div class="section-head">
             <div>
                 <h2>Post Match</h2>
                 <p class="page-copy">Create a new tennis or pickleball meetup.</p>
             </div>
-        </div>
-        <div class="match-progress">
-            <div class="match-progress-copy">
-                <strong>Post readiness</strong>
-                <span>{{ store.matchFormProgressLabel.value }}</span>
-            </div>
-            <div class="match-progress-track" aria-hidden="true">
-                <span
-                    class="match-progress-fill"
-                    :style="{ width: store.matchFormProgressPercent.value + '%' }"
-                ></span>
-            </div>
-        </div>
-        <form @submit.prevent="store.postMatch()">
-            <label class="field" :class="{ complete: !!store.matchForm.value.sport }">
-                <span>Sport</span>
-                <select v-model="store.matchForm.value.sport">
-                    <option value="tennis">Tennis</option>
-                    <option value="pickleball">Pickleball</option>
-                </select>
-            </label>
-            <label class="field" :class="{ complete: !!store.matchForm.value.location }">
-                <span>Location</span>
-                <select v-model="store.matchForm.value.location">
-                    <option value="MIT">MIT</option>
-                    <option value="Harvard">Harvard</option>
-                </select>
-            </label>
-            <div class="split">
-                <label class="field" :class="{ complete: !!store.matchForm.value.ratingType }">
-                    <span>Rating Type</span>
-                    <select v-model="store.matchForm.value.ratingType">
-                        <option value="UTR">UTR</option>
-                        <option value="UTR-P">UTR-P</option>
-                    </select>
-                </label>
-                <label class="field" :class="{ complete: store.matchRatingValid.value }">
-                    <span>Rating (1-16)</span>
-                    <input v-model.number="store.matchForm.value.rating" type="number" min="1" max="16" step="0.1" placeholder="6.5" />
-                </label>
-            </div>
-            <label class="field" :class="{ complete: !!store.matchForm.value.format }">
-                <span>Format</span>
-                <select v-model="store.matchForm.value.format">
-                    <option value="singles">Singles</option>
-                    <option value="doubles">Doubles</option>
-                </select>
-            </label>
-            <div class="split">
-                <label class="field" :class="{ complete: !!store.matchForm.value.date }">
-                    <span>Date</span>
-                    <input v-model="store.matchForm.value.date" type="date" />
-                </label>
-                <label class="field" :class="{ complete: !!store.matchForm.value.time }">
-                    <span>Time</span>
-                    <input v-model="store.matchForm.value.time" type="time" />
-                </label>
-            </div>
-            <label class="field" :class="{ complete: store.matchCostValid.value }">
-                <span>Cost Per Spot ($)</span>
-                <input v-model.number="store.matchForm.value.costPerSpot" type="number" min="0" step="1" placeholder="12" />
-            </label>
             <button
-                :class="{ 'is-ready': store.canPostMatch.value }"
-                :disabled="!store.canPostMatch.value || store.postingMatch.value"
+                type="button"
+                class="secondary-button section-toggle"
+                @click="store.togglePostMatchCollapsed()"
+                :aria-label="store.postMatchCollapsed.value ? 'Open post match form' : 'Collapse post match form'"
             >
-                {{ store.postingMatch.value ? "Posting..." : "Post Match" }}
+                {{ store.postMatchCollapsed.value ? "+" : "−" }}
             </button>
-        </form>
+        </div>
+
+        <transition name="post-form">
+            <div v-if="!store.postMatchCollapsed.value" class="post-form-body">
+                <div class="match-progress">
+                    <div class="match-progress-copy">
+                        <strong>Post readiness</strong>
+                        <span>{{ store.matchFormProgressLabel.value }}</span>
+                    </div>
+                    <div class="match-progress-track" aria-hidden="true">
+                        <span
+                            class="match-progress-fill"
+                            :style="{ width: store.matchFormProgressPercent.value + '%' }"
+                        ></span>
+                    </div>
+                </div>
+                <form class="match-form compact-form" @submit.prevent="store.postMatch()">
+                    <label class="field" :class="{ complete: !!store.matchForm.value.sport }">
+                        <span>Sport</span>
+                        <select v-model="store.matchForm.value.sport">
+                            <option value="tennis">Tennis</option>
+                            <option value="pickleball">Pickleball</option>
+                        </select>
+                    </label>
+                    <label class="field" :class="{ complete: !!store.matchForm.value.location }">
+                        <span>Location</span>
+                        <select v-model="store.matchForm.value.location">
+                            <option value="MIT">MIT</option>
+                            <option value="Harvard">Harvard</option>
+                        </select>
+                    </label>
+                    <label class="field" :class="{ complete: !!store.matchForm.value.format }">
+                        <span>Format</span>
+                        <select v-model="store.matchForm.value.format">
+                            <option value="singles">Singles</option>
+                            <option value="doubles">Doubles</option>
+                        </select>
+                    </label>
+                    <label class="field" :class="{ complete: store.matchCostValid.value }">
+                        <span>Cost Per Spot ($)</span>
+                        <input v-model.number="store.matchForm.value.costPerSpot" type="number" min="0" step="1" placeholder="12" />
+                    </label>
+                    <label class="field field-span-full" :class="{ complete: !!store.matchForm.value.ratingType }">
+                        <span>Skill Bracket</span>
+                        <select v-model="store.matchForm.value.ratingType">
+                            <option value="Unrated">Unrated</option>
+                            <option value="UTR">UTR</option>
+                            <option value="UTR-P">UTR-P</option>
+                        </select>
+                    </label>
+                    <label
+                        v-if="store.matchNeedsRating.value"
+                        class="field field-span-full"
+                        :class="{ complete: store.matchRatingValid.value }"
+                    >
+                        <span>Rating (1-16)</span>
+                        <input v-model.number="store.matchForm.value.rating" type="number" min="1" max="16" step="0.1" placeholder="6.5" />
+                    </label>
+                    <div v-else class="field field-span-full complete">
+                        <span>Rating</span>
+                        <p class="note">No rating needed for unrated matches.</p>
+                    </div>
+                    <div class="split field-span-full">
+                        <label class="field" :class="{ complete: !!store.matchForm.value.date }">
+                            <span>Date</span>
+                            <input v-model="store.matchForm.value.date" type="date" />
+                        </label>
+                        <label class="field" :class="{ complete: !!store.matchForm.value.time }">
+                            <span>Time</span>
+                            <input v-model="store.matchForm.value.time" type="time" />
+                        </label>
+                    </div>
+                    <button
+                        :class="{ 'is-ready': store.canPostMatch.value }"
+                        class="field-span-full"
+                        :disabled="!store.canPostMatch.value || store.postingMatch.value"
+                    >
+                        {{ store.postingMatch.value ? "Posting..." : "Post Match" }}
+                    </button>
+                </form>
+            </div>
+        </transition>
     </section>
 
-    <section class="card page">
+    <section class="card page matches-panel">
         <div class="section-head">
             <div>
-                <h2>Match Lobby</h2>
-                <p class="page-copy">Find open games and reserve a spot.</p>
+                <h2>Matches</h2>
+                <p class="page-copy">Browse open games or manage the ones you posted.</p>
             </div>
         </div>
-        <p v-if="store.matchesLoading.value"><em>Loading matches...</em></p>
-        <p v-else-if="!store.matchCards.value.length" class="empty">No matches posted yet.</p>
-        <div v-else class="stack">
-            <match-card
-                v-for="match in store.matchCards.value"
-                :key="match.url"
-                :match="match"
-                :pending-match-id="store.pendingMatchId.value"
-                :joining-match-id="store.joiningMatchId.value"
-                :deleting-match-id="store.deletingMatchId.value"
-                @select-match="store.pendingMatchId.value = $event"
-                @join-match="store.joinMatch($event)"
-                @delete-match="store.deleteMatch($event)"
-            ></match-card>
+
+        <div class="tab-row">
+            <div class="tab-group">
+                <button
+                    type="button"
+                    class="secondary-button tab-button"
+                    :class="{ active: store.activeMatchesTab.value === 'open' }"
+                    @click="store.setActiveMatchesTab('open')"
+                >
+                    Open Matches
+                </button>
+                <button
+                    type="button"
+                    class="secondary-button tab-button"
+                    :class="{ active: store.activeMatchesTab.value === 'mine' }"
+                    @click="store.setActiveMatchesTab('mine')"
+                >
+                    My Matches
+                </button>
+            </div>
+
+            <div
+                class="toolbar"
+                :class="{ 'toolbar-hidden': store.activeMatchesTab.value !== 'open' }"
+            >
+                <label class="toolbar-label">
+                    <span>Sort by</span>
+                    <select v-model="store.matchSortMode.value">
+                        <option value="soonest">Soonest First</option>
+                        <option value="skill">Closest Skill</option>
+                        <option value="newest">Newest</option>
+                    </select>
+                </label>
+                <label class="toolbar-label">
+                    <span>Show</span>
+                    <select v-model="store.matchAvailabilityFilter.value">
+                        <option value="all">All Matches</option>
+                        <option value="available">Available Only</option>
+                    </select>
+                </label>
+            </div>
         </div>
+
+        <transition name="match-tab" mode="out-in">
+            <div
+                v-if="store.activeMatchesTab.value === 'open'"
+                key="open-matches"
+                class="matches-content"
+            >
+                <p v-if="store.matchesLoading.value"><em>Loading matches...</em></p>
+                <p v-else-if="!store.openMatches.value.length" class="empty">No open matches right now.</p>
+                <div v-else class="stack matches-scroll">
+                    <match-card
+                        v-for="match in store.openMatches.value"
+                        :key="match.url"
+                        :match="match"
+                        :pending-match-id="store.pendingMatchId.value"
+                        :joining-match-id="store.joiningMatchId.value"
+                        :deleting-match-id="store.deletingMatchId.value"
+                        @select-match="store.pendingMatchId.value = $event"
+                        @join-match="store.joinMatch($event)"
+                        @delete-match="store.deleteMatch($event)"
+                    ></match-card>
+                </div>
+            </div>
+
+            <div v-else key="my-matches" class="matches-content">
+                <p v-if="store.matchesLoading.value"><em>Loading your matches...</em></p>
+                <p v-else-if="!store.myMatches.value.length" class="empty">You have not posted any active matches yet.</p>
+                <div v-else class="stack matches-scroll">
+                    <match-card
+                        v-for="match in store.myMatches.value"
+                        :key="match.url"
+                        :match="match"
+                        :pending-match-id="store.pendingMatchId.value"
+                        :joining-match-id="store.joiningMatchId.value"
+                        :deleting-match-id="store.deletingMatchId.value"
+                        @select-match="store.pendingMatchId.value = $event"
+                        @join-match="store.joinMatch($event)"
+                        @delete-match="store.deleteMatch($event)"
+                    ></match-card>
+                </div>
+            </div>
+        </transition>
     </section>
 </section>

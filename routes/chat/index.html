@@ -15,7 +15,7 @@
     <router-link class="button-link" to="/chats">Back to chats</router-link>
 </section>
 
-<section v-else class="card page">
+<section v-else class="card page chat-page">
     <div class="chat-head">
         <div class="profile">
             <div v-if="routePerson.value.icon" class="profile-photo">
@@ -35,18 +35,27 @@
             <router-link class="button-link secondary-link" to="/chats">All chats</router-link>
         </div>
     </div>
-    <p v-if="store.messagesLoading.value"><em>Loading messages...</em></p>
-    <transition-group v-else name="message-list" tag="ul" class="messages">
-        <message-bubble
-            v-for="message in store.sortedMessages.value"
-            :key="message.url"
-            :message="message"
-            :mine="message.mine"
-            :sender-name="store.profileNames.value[message.actor] || 'Player'"
-        ></message-bubble>
-    </transition-group>
-    <p v-if="!store.messagesLoading.value && !store.sortedMessages.value.length && store.chatReady.value" class="empty">No messages yet.</p>
-    <form class="composer" @submit.prevent="store.sendMessage()">
+
+    <div class="chat-body">
+        <p v-if="store.messagesLoading.value" class="chat-state"><em>Loading messages...</em></p>
+        <transition-group v-else name="message-list" tag="ul" class="messages chat-messages">
+            <message-bubble
+                v-for="message in store.sortedMessages.value"
+                :key="message.url"
+                :message="message"
+                :mine="message.mine"
+                :sender-name="store.profileNames.value[message.actor] || 'Player'"
+            ></message-bubble>
+        </transition-group>
+        <p
+            v-if="!store.messagesLoading.value && !store.sortedMessages.value.length && store.chatReady.value"
+            class="empty chat-state"
+        >
+            No messages yet.
+        </p>
+    </div>
+
+    <form class="composer chat-composer" @submit.prevent="store.sendMessage()">
         <input v-model.trim="store.messageText.value" type="text" placeholder="Type a message" />
         <button
             :class="{ 'is-sending': store.sendingMessage.value }"

@@ -8,26 +8,62 @@
     <section class="card page">
         <div class="section-head">
             <div>
-                <h2>Players</h2>
-                <p class="page-copy">Pick someone to start or continue a direct message.</p>
+                <h2>Direct Messages</h2>
+                <p class="page-copy">Start or continue a conversation with another player.</p>
             </div>
         </div>
         <p v-if="store.profilesLoading.value"><em>Loading players...</em></p>
-        <p v-else-if="!store.people.value.length" class="empty">No other players yet.</p>
-        <ul v-else class="list">
-            <li v-for="person in store.people.value" :key="person.actor">
-                <router-link class="item-link" :to="{ name: 'chat', params: { actor: person.actor } }">
-                    <span class="item">
-                        <span v-if="person.value.icon" class="profile-photo profile-photo-small">
+        <p v-else-if="!store.dmRows.value.length" class="empty">No other players yet.</p>
+        <ul v-else class="list conversation-list scroll-list">
+            <li v-for="row in store.dmRows.value" :key="row.actor">
+                <router-link class="item-link" :to="row.route">
+                    <span class="item conversation-item" :class="{ unread: row.unread }">
+                        <span v-if="row.icon" class="profile-photo profile-photo-small">
                             <graffiti-get-media
-                                :url="person.value.icon"
+                                :url="row.icon"
                                 :accept="{ types: ['image/*'] }"
                             ></graffiti-get-media>
                         </span>
-                        <span v-else class="avatar small">{{ store.clipName(person.value.name).slice(0, 1).toUpperCase() }}</span>
-                        <span class="item-text">
-                            <strong>{{ store.clipName(person.value.name) }}</strong>
-                            <span>Sports: {{ person.value.sports.join(", ") }}</span>
+                        <span v-else class="avatar small">{{ row.initial }}</span>
+                        <span class="item-text conversation-text">
+                            <span class="conversation-topline">
+                                <strong>{{ row.title }}</strong>
+                                <span class="conversation-side">
+                                    <span v-if="row.timeLabel" class="conversation-time">{{ row.timeLabel }}</span>
+                                    <span v-if="row.unread" class="unread-badge">New</span>
+                                </span>
+                            </span>
+                            <span>{{ row.subtitle }}</span>
+                        </span>
+                    </span>
+                </router-link>
+            </li>
+        </ul>
+    </section>
+
+    <section class="card page">
+        <div class="section-head">
+            <div>
+                <h2>Match Chats</h2>
+                <p class="page-copy">See conversations for matches you posted or joined.</p>
+            </div>
+        </div>
+        <p v-if="store.matchesLoading.value"><em>Loading match chats...</em></p>
+        <p v-else-if="!store.matchChatRows.value.length" class="empty">No match chats yet.</p>
+        <ul v-else class="list conversation-list scroll-list">
+            <li v-for="row in store.matchChatRows.value" :key="row.matchId">
+                <router-link class="item-link" :to="row.route">
+                    <span class="item conversation-item" :class="{ unread: row.unread }">
+                        <span class="avatar small">{{ row.initial }}</span>
+                        <span class="item-text conversation-text">
+                            <span class="conversation-topline">
+                                <strong>{{ row.title }}</strong>
+                                <span class="conversation-side">
+                                    <span v-if="row.timeLabel" class="conversation-time">{{ row.timeLabel }}</span>
+                                    <span v-if="row.unread" class="unread-badge">New</span>
+                                </span>
+                            </span>
+                            <span>{{ row.subtitle }}</span>
                         </span>
                     </span>
                 </router-link>

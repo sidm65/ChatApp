@@ -21,22 +21,31 @@
         <div id="app">Loading...</div>
         <template id="template">
             <div class="app">
-                <header>
+                <header class="app-header">
                     <div class="hero">
                         <h1><router-link to="/">Court Connect</router-link></h1>
                         <p>Plan Pickleball and tennis meetups!</p>
                     </div>
-                    <nav v-if="session" class="nav">
-                        <router-link to="/profile" class="nav-link">Profile</router-link>
-                        <router-link to="/matches" class="nav-link">Matches</router-link>
-                        <router-link to="/chats" class="nav-link">Chats</router-link>
-                    </nav>
-                    <div class="actions">
-                        <button v-if="session === null" @click="logIn()">Log In</button>
-                        <button v-else-if="session" @click="logOut()">Log Out</button>
+                    <div class="header-controls" v-if="session">
+                        <nav v-if="session" class="nav">
+                            <router-link to="/profile" class="nav-link">Profile</router-link>
+                            <router-link to="/matches" class="nav-link">Matches</router-link>
+                            <router-link to="/chats" class="nav-link">
+                                Chats
+                                <span
+                                    v-if="store.hasUnreadConversations.value"
+                                    class="nav-indicator"
+                                    aria-hidden="true"
+                                ></span>
+                            </router-link>
+                        </nav>
+                        <button class="secondary-button logout-button" @click="logOut()">Log Out</button>
+                    </div>
+                    <div v-else-if="session === null" class="header-controls guest-controls">
+                        <button @click="logIn()">Log In</button>
                     </div>
                 </header>
-                <main>
+                <main class="app-main">
                     <router-view v-slot="{ Component, route }">
                         <transition name="route-slide" mode="out-in">
                             <div :key="route.fullPath" class="route-view">

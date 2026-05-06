@@ -24,6 +24,7 @@ function setup() {
   onMounted(() => {
     store.refreshProfiles();
     store.refreshChats();
+    store.refreshConversationMessages();
   });
 
   watch(

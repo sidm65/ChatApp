@@ -1,7 +1,7 @@
 <article class="match match-card">
     <div class="match-top">
         <strong class="match-title">{{ match.value.sport }} at {{ match.value.location }}</strong>
-        <span class="pill">{{ match.value.ratingType }} {{ match.value.rating }}</span>
+        <span class="pill">{{ match.ratingLabel }}</span>
     </div>
     <p class="host-line">
         Hosted by
@@ -38,7 +38,7 @@
         </template>
     </div>
     <p v-if="match.mine" class="status">Your match</p>
-    <p v-else-if="match.joined" class="status">Done</p>
+    <p v-else-if="match.joined" class="status">Joined!</p>
     <p v-else-if="match.full" class="status">Full</p>
     <div class="match-actions">
         <router-link

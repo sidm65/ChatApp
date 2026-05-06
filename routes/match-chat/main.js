@@ -24,15 +24,16 @@ function setup() {
   onMounted(() => {
     store.refreshMatches();
     store.refreshProfiles();
+    store.refreshConversationMessages();
   });
 
   watch(
     [matchId, match, () => store.profileReady.value],
-    ([currentMatchId, currentMatch, profileReady]) => {
+    async ([currentMatchId, currentMatch, profileReady]) => {
       if (!currentMatchId || !currentMatch || !profileReady || !currentMatch.canChat) {
         return;
       }
-      store.openMatchChat(currentMatchId);
+      await store.openMatchChat(currentMatchId);
     },
     { immediate: true },
   );

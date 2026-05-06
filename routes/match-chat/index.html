@@ -15,7 +15,7 @@
     <router-link class="button-link" to="/matches">Back to matches</router-link>
 </section>
 
-<section v-else class="card page">
+<section v-else class="card page chat-page">
     <div class="chat-head">
         <div>
             <h2>{{ match.value.sport }} at {{ match.value.location }}</h2>
@@ -38,18 +38,26 @@
         </div>
     </div>
 
-    <p v-if="store.messagesLoading.value"><em>Loading messages...</em></p>
-    <transition-group v-else name="message-list" tag="ul" class="messages">
-        <message-bubble
-            v-for="message in store.sortedMessages.value"
-            :key="message.url"
-            :message="message"
-            :mine="message.mine"
-            :sender-name="store.profileNames.value[message.actor] || 'Player'"
-        ></message-bubble>
-    </transition-group>
-    <p v-if="!store.messagesLoading.value && !store.sortedMessages.value.length" class="empty">No messages yet. Start coordinating with the group.</p>
-    <form class="composer" @submit.prevent="store.sendMessage()">
+    <div class="chat-body">
+        <p v-if="store.messagesLoading.value" class="chat-state"><em>Loading messages...</em></p>
+        <transition-group v-else name="message-list" tag="ul" class="messages chat-messages">
+            <message-bubble
+                v-for="message in store.sortedMessages.value"
+                :key="message.url"
+                :message="message"
+                :mine="message.mine"
+                :sender-name="store.profileNames.value[message.actor] || 'Player'"
+            ></message-bubble>
+        </transition-group>
+        <p
+            v-if="!store.messagesLoading.value && !store.sortedMessages.value.length"
+            class="empty chat-state"
+        >
+            No messages yet. Start coordinating with the group.
+        </p>
+    </div>
+
+    <form class="composer chat-composer" @submit.prevent="store.sendMessage()">
         <input v-model.trim="store.messageText.value" type="text" placeholder="Message the players in this match" />
         <button
             :class="{ 'is-sending': store.sendingMessage.value }"

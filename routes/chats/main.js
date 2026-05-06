@@ -8,6 +8,8 @@ function setup() {
     store.clearActiveChat();
     store.refreshProfiles();
     store.refreshChats();
+    store.refreshMatches();
+    store.refreshConversationMessages();
   });
 
   return { store };
