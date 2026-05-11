@@ -18,7 +18,7 @@
 <section v-else class="card page chat-page">
     <div class="chat-head">
         <div>
-            <h2>{{ match.value.sport }} at {{ match.value.location }}</h2>
+            <h2>{{ match.title }}</h2>
             <p>Hosted by <router-link class="inline-link" :to="match.profilePath">{{ match.hostName }}</router-link></p>
         </div>
         <router-link class="button-link secondary-link" to="/matches">Back to matches</router-link>

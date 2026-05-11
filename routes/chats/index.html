@@ -12,10 +12,24 @@
                 <p class="page-copy">Start or continue a conversation with another player.</p>
             </div>
         </div>
+        <label class="field search-field">
+            <span>Search Players</span>
+            <input
+                v-model.trim="store.dmSearchText.value"
+                type="search"
+                placeholder="Search names, sports, or chat previews"
+            />
+        </label>
         <p v-if="store.profilesLoading.value"><em>Loading players...</em></p>
-        <p v-else-if="!store.dmRows.value.length" class="empty">No other players yet.</p>
+        <p v-else-if="!store.filteredDmRows.value.length" class="empty">
+            {{
+                store.dmSearchText.value
+                    ? "No players match your search."
+                    : "No other players yet."
+            }}
+        </p>
         <ul v-else class="list conversation-list scroll-list">
-            <li v-for="row in store.dmRows.value" :key="row.actor">
+            <li v-for="row in store.filteredDmRows.value" :key="row.actor">
                 <router-link class="item-link" :to="row.route">
                     <span class="item conversation-item" :class="{ unread: row.unread }">
                         <span v-if="row.icon" class="profile-photo profile-photo-small">
@@ -48,10 +62,24 @@
                 <p class="page-copy">See conversations for matches you posted or joined.</p>
             </div>
         </div>
+        <label class="field search-field">
+            <span>Search Match Chats</span>
+            <input
+                v-model.trim="store.matchChatSearchText.value"
+                type="search"
+                placeholder="Search titles, hosts, or chat previews"
+            />
+        </label>
         <p v-if="store.matchesLoading.value"><em>Loading match chats...</em></p>
-        <p v-else-if="!store.matchChatRows.value.length" class="empty">No match chats yet.</p>
+        <p v-else-if="!store.filteredMatchChatRows.value.length" class="empty">
+            {{
+                store.matchChatSearchText.value
+                    ? "No match chats match your search."
+                    : "No match chats yet."
+            }}
+        </p>
         <ul v-else class="list conversation-list scroll-list">
-            <li v-for="row in store.matchChatRows.value" :key="row.matchId">
+            <li v-for="row in store.filteredMatchChatRows.value" :key="row.matchId">
                 <router-link class="item-link" :to="row.route">
                     <span class="item conversation-item" :class="{ unread: row.unread }">
                         <span class="avatar small">{{ row.initial }}</span>

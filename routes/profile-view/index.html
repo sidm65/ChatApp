@@ -21,8 +21,27 @@
                 {{ store.clipName(profile.value.name).slice(0, 1).toUpperCase() }}
             </div>
             <div>
-                <h2>{{ store.clipName(profile.value.name) }}</h2>
+                <div class="profile-name-row">
+                    <h2>{{ store.clipName(profile.value.name) }}</h2>
+                    <a
+                        v-if="profile.value.instagram"
+                        class="button-link secondary-link profile-social-link"
+                        :href="`https://www.instagram.com/${profile.value.instagram}`"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        <svg class="instagram-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="3.5" width="17" height="17" rx="5"></rect>
+                            <circle cx="12" cy="12" r="4.1"></circle>
+                            <circle cx="17.4" cy="6.6" r="1.1"></circle>
+                        </svg>
+                        @{{ profile.value.instagram }}
+                    </a>
+                </div>
                 <p class="page-copy">Sports: {{ profile.value.sports.join(", ") }}</p>
+                <p v-if="profile.value.about" class="page-copy profile-about-copy">
+                    {{ profile.value.about }}
+                </p>
             </div>
         </div>
         <router-link

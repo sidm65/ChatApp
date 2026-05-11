@@ -1,8 +1,15 @@
+import { useGraffiti } from "@graffiti-garden/wrapper-vue";
 import { useCourtConnectStore } from "../../store.js";
 
 function setup() {
+  const graffiti = useGraffiti();
   const store = useCourtConnectStore();
-  return { store };
+
+  async function logIn() {
+    await graffiti.login();
+  }
+
+  return { store, logIn };
 }
 
 export default async () => ({

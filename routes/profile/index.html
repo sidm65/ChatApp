@@ -1,5 +1,5 @@
 <section class="page-grid">
-    <section class="card page">
+    <section class="card page profile-page">
         <div class="section-head">
             <div>
                 <h2>Your Profile</h2>
@@ -7,49 +7,93 @@
             </div>
         </div>
         <form class="profile-form" @submit.prevent="handleSaveProfile()">
-            <label class="field">
+            <label class="field profile-field-required">
                 <span>Name</span>
                 <input v-model.trim="store.profileForm.value.name" type="text" placeholder="Your name" maxlength="15" />
             </label>
             <p class="note">Usernames are limited to {{ store.MAX_NAME_LENGTH }} characters.</p>
-            <div class="choice-group">
+            <div class="choice-group profile-choice-required">
                 <span>Sports</span>
                 <label><input v-model="store.profileForm.value.sports" type="checkbox" value="tennis" /> Tennis</label>
                 <label><input v-model="store.profileForm.value.sports" type="checkbox" value="pickleball" /> Pickleball</label>
             </div>
-            <div class="split">
-                <label class="field">
+            <div v-if="store.profileHasTennis.value || store.profileHasPickleball.value" class="split">
+                <label v-if="store.profileHasTennis.value" class="field">
                     <span>Self-Reported UTR</span>
-                    <input v-model="store.profileForm.value.utr" type="number" min="1" max="16" step="0.1" placeholder="4.5" />
+                    <input
+                        :value="store.profileForm.value.utr"
+                        type="number"
+                        min="1"
+                        max="16.5"
+                        step="0.1"
+                        placeholder="1.0 to 16.5"
+                        @input="store.setProfileRating('utr', $event.target.value)"
+                    />
                 </label>
-                <label class="field">
+                <label v-if="store.profileHasPickleball.value" class="field">
                     <span>Self-Reported UTR-P</span>
-                    <input v-model="store.profileForm.value.utrp" type="number" min="1" max="10" step="0.1" placeholder="3.5" />
+                    <input
+                        :value="store.profileForm.value.utrp"
+                        type="number"
+                        min="1"
+                        max="10"
+                        step="0.1"
+                        placeholder="1.0 to 10.0"
+                        @input="store.setProfileRating('utrp', $event.target.value)"
+                    />
                 </label>
             </div>
             <p class="note">New to the game? Leave the ratings blank for now.</p>
-            <section class="media-card">
+            <section class="media-card profile-photo-card">
                 <h3>Profile Photo</h3>
-                <div v-if="store.currentProfilePhotoUrl.value" class="profile-photo profile-photo-editor">
-                    <graffiti-get-media
-                        :url="store.currentProfilePhotoUrl.value"
-                        :accept="{ types: ['image/*'] }"
-                    ></graffiti-get-media>
+                <div class="profile-photo-status">
+                    <p class="profile-photo-status-title">{{ store.profilePhotoStatusTitle.value }}</p>
+                    <p class="note">{{ store.profilePhotoStatusText.value }}</p>
+                    <div class="photo-preview-links">
+                        <button
+                            v-if="store.currentProfileHasPhoto.value && !store.removeProfilePhoto.value"
+                            type="button"
+                            class="file-preview-trigger"
+                            @click="store.openCurrentProfilePhotoPreview()"
+                        >
+                            Preview current photo
+                        </button>
+                        <button
+                            v-if="store.selectedProfilePhotoName.value"
+                            type="button"
+                            class="file-preview-trigger"
+                            @click="store.openSelectedProfilePhotoPreview()"
+                        >
+                            Preview selected photo
+                        </button>
+                    </div>
                 </div>
-                <p v-else class="empty">No profile photo selected.</p>
                 <label class="field">
-                    <span>Upload an optional photo</span>
+                    <span>{{ store.profilePhotoUploadLabel.value }}</span>
                     <input type="file" accept="image/*" @change="store.handleProfilePhotoSelect" />
                 </label>
-                <p v-if="store.selectedProfilePhotoName.value" class="note">Selected file: {{ store.selectedProfilePhotoName.value }}</p>
+                <p v-if="store.selectedProfilePhotoName.value" class="note profile-photo-file-note">
+                    Selected file: <strong>{{ store.selectedProfilePhotoName.value }}</strong>
+                </p>
+                <p v-if="store.profilePhotoHasPendingChange.value" class="note">
+                    Save Profile to apply this photo change.
+                </p>
                 <div class="photo-actions">
                     <button
-                        v-if="store.currentProfileHasPhoto.value"
+                        v-if="store.selectedProfilePhotoName.value"
+                        type="button"
+                        class="secondary-button"
+                        @click="store.discardSelectedProfilePhoto()"
+                    >
+                        Discard Selected Photo
+                    </button>
+                    <button
+                        v-if="store.currentProfileHasPhoto.value && !store.removeProfilePhoto.value"
                         type="button"
                         class="delete-btn"
                         @click="store.markProfilePhotoForRemoval()"
                     >
-                        Remove Current Photo
+                        Remove Saved Photo
                     </button>
                     <button
                         v-if="store.removeProfilePhoto.value"
@@ -57,20 +101,80 @@
                         class="secondary-button"
                         @click="store.keepCurrentProfilePhoto()"
                     >
-                        Keep Current Photo
+                        Undo Removal
                     </button>
                 </div>
+                <div
+                    v-if="store.profilePhotoPreviewOpen.value && (store.previewingSelectedProfilePhoto.value || store.currentProfilePhotoUrl.value)"
+                    class="photo-preview-overlay"
+                    @click.self="store.closeSelectedProfilePhotoPreview()"
+                >
+                    <section class="photo-preview-dialog">
+                        <div class="photo-preview-head">
+                            <h3>{{ store.profilePhotoPreviewTitle.value }}</h3>
+                            <button
+                                type="button"
+                                class="secondary-button"
+                                @click="store.closeSelectedProfilePhotoPreview()"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        <img
+                            v-if="store.previewingSelectedProfilePhoto.value"
+                            :src="store.selectedProfilePhotoPreviewUrl.value"
+                            :alt="store.selectedProfilePhotoName.value || 'Selected profile photo preview'"
+                            class="photo-preview-image"
+                        />
+                        <div v-else class="photo-preview-media">
+                            <graffiti-get-media
+                                :url="store.currentProfilePhotoUrl.value"
+                                :accept="{ types: ['image/*'] }"
+                            ></graffiti-get-media>
+                        </div>
+                    </section>
+                </div>
             </section>
-            <button :disabled="!store.canSaveProfile.value || store.savingProfile.value">
-                {{ store.savingProfile.value ? "Saving..." : "Save Profile" }}
-            </button>
+            <label class="field">
+                <span>About Me</span>
+                <textarea
+                    v-model.trim="store.profileForm.value.about"
+                    rows="2"
+                    placeholder="Optional: Share a quick intro, preferred playing style, or what you're looking for."
+                ></textarea>
+            </label>
+            <p class="note">
+                {{ store.profileAboutWordCount.value }}/{{ store.MAX_ABOUT_WORDS }} words
+            </p>
+            <label class="field">
+                <span>Instagram Profile</span>
+                <input
+                    v-model.trim="store.profileForm.value.instagram"
+                    type="text"
+                    placeholder="Optional: @username"
+                    @blur="store.maybeAlertInvalidInstagram()"
+                />
+            </label>
+            <div class="profile-save-row">
+                <button :disabled="!store.canSaveProfile.value || store.savingProfile.value">
+                    {{ store.savingProfile.value ? "Saving..." : "Save Profile" }}
+                </button>
+                <span
+                    v-if="store.profileReady.value && store.profileEditorSynced.value && !store.profileDirty.value && !store.savingProfile.value"
+                    class="note profile-save-note"
+                >
+                    No unsaved changes
+                </span>
+            </div>
             <p class="empty" v-if="store.nameTooLong.value">Usernames must be 15 characters or fewer.</p>
             <p class="empty" v-else-if="store.duplicateName.value">That nickname is already taken.</p>
-            <p class="empty" v-else-if="store.invalidUtr.value">UTR must be between 1 and 16.</p>
+            <p class="empty" v-else-if="store.profileAboutTooLong.value">
+                About Me must be {{ store.MAX_ABOUT_WORDS }} words or fewer.
+            </p>
+            <p class="empty" v-else-if="store.invalidUtr.value">UTR must be between 1 and 16.5.</p>
             <p class="empty" v-else-if="store.invalidUtrp.value">UTR-P must be between 1 and 10.</p>
             <p class="empty" v-else-if="store.profileError.value">{{ store.profileError.value }}</p>
-            <p class="note" v-if="store.profileReady.value">Profile saved. You can use the rest of the app now.</p>
-            <p class="note" v-else>Save your profile before chatting or posting matches.</p>
+            <p class="note" v-else-if="!store.profileReady.value">Save your profile before chatting or posting matches.</p>
         </form>
     </section>
 </section>

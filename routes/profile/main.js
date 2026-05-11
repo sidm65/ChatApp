@@ -7,7 +7,12 @@ function setup() {
   const router = useRouter();
 
   onMounted(() => {
-    store.refreshProfiles();
+    (async () => {
+      await store.refreshProfiles();
+      if (!store.profileDirty.value) {
+        store.resetProfileEditor();
+      }
+    })();
   });
 
   async function handleSaveProfile() {

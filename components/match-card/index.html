@@ -1,8 +1,9 @@
 <article class="match match-card">
     <div class="match-top">
-        <strong class="match-title">{{ match.value.sport }} at {{ match.value.location }}</strong>
+        <strong class="match-title">{{ match.title }}</strong>
         <span class="pill">{{ match.ratingLabel }}</span>
     </div>
+    <p class="match-subtitle">{{ match.value.sport }} at {{ match.value.location }}</p>
     <p class="host-line">
         Hosted by
         <router-link class="inline-link" :to="match.profilePath">{{ match.hostName }}</router-link>
@@ -14,8 +15,7 @@
     </div>
     <div class="meta">
         <span>{{ match.value.format }}</span>
-        <span>{{ match.value.date }}</span>
-        <span>{{ match.value.time }}</span>
+        <span>{{ match.scheduleLabel }}</span>
     </div>
     <p class="cost">Cost per spot: ${{ match.value.costPerSpot }}</p>
     <div class="seats">

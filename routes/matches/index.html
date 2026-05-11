@@ -39,61 +39,116 @@
                     </div>
                 </div>
                 <form class="match-form compact-form" @submit.prevent="store.postMatch()">
-                    <label class="field" :class="{ complete: !!store.matchForm.value.sport }">
+                    <label class="field field-span-full optional-field">
+                        <span>Match Title</span>
+                        <input
+                            v-model.trim="store.matchForm.value.title"
+                            type="text"
+                            :maxlength="store.MAX_MATCH_TITLE_LENGTH"
+                            placeholder="Optional: Tennis at MIT by Alex"
+                        />
+                    </label>
+                    <label
+                        class="field"
+                        :class="{ complete: store.matchFieldState.value.sport, incomplete: !store.matchFieldState.value.sport }"
+                    >
                         <span>Sport</span>
                         <select v-model="store.matchForm.value.sport">
+                            <option disabled value="">Select a sport</option>
                             <option value="tennis">Tennis</option>
                             <option value="pickleball">Pickleball</option>
                         </select>
                     </label>
-                    <label class="field" :class="{ complete: !!store.matchForm.value.location }">
+                    <label
+                        class="field"
+                        :class="{ complete: store.matchFieldState.value.location, incomplete: !store.matchFieldState.value.location }"
+                    >
                         <span>Location</span>
                         <select v-model="store.matchForm.value.location">
+                            <option disabled value="">Select a location</option>
                             <option value="MIT">MIT</option>
                             <option value="Harvard">Harvard</option>
                         </select>
                     </label>
-                    <label class="field" :class="{ complete: !!store.matchForm.value.format }">
+                    <label
+                        class="field"
+                        :class="{ complete: store.matchFieldState.value.format, incomplete: !store.matchFieldState.value.format }"
+                    >
                         <span>Format</span>
                         <select v-model="store.matchForm.value.format">
+                            <option disabled value="">Select a format</option>
                             <option value="singles">Singles</option>
                             <option value="doubles">Doubles</option>
                         </select>
                     </label>
-                    <label class="field" :class="{ complete: store.matchCostValid.value }">
+                    <label
+                        class="field"
+                        :class="{ complete: store.matchFieldState.value.costPerSpot, incomplete: !store.matchFieldState.value.costPerSpot }"
+                    >
                         <span>Cost Per Spot ($)</span>
                         <input v-model.number="store.matchForm.value.costPerSpot" type="number" min="0" step="1" placeholder="12" />
                     </label>
-                    <label class="field field-span-full" :class="{ complete: !!store.matchForm.value.ratingType }">
+                    <label
+                        class="field field-span-full"
+                        :class="{ complete: store.matchFieldState.value.skill, incomplete: !store.matchFieldState.value.skill }"
+                    >
                         <span>Skill Bracket</span>
                         <select v-model="store.matchForm.value.ratingType">
+                            <option disabled value="">Select a rating type</option>
                             <option value="Unrated">Unrated</option>
-                            <option value="UTR">UTR</option>
-                            <option value="UTR-P">UTR-P</option>
+                            <option v-if="store.matchSupportsTennisRating.value" value="UTR">UTR</option>
+                            <option v-if="store.matchSupportsPickleballRating.value" value="UTR-P">UTR-P</option>
                         </select>
                     </label>
                     <label
                         v-if="store.matchNeedsRating.value"
                         class="field field-span-full"
-                        :class="{ complete: store.matchRatingValid.value }"
+                        :class="{ complete: store.matchFieldState.value.skill, incomplete: !store.matchFieldState.value.skill }"
                     >
-                        <span>Rating (1-16)</span>
-                        <input v-model.number="store.matchForm.value.rating" type="number" min="1" max="16" step="0.1" placeholder="6.5" />
+                        <span>{{ store.matchRatingLabel.value }}</span>
+                        <input
+                            :value="store.matchForm.value.rating"
+                            type="number"
+                            :min="store.matchRatingMin.value"
+                            :max="store.matchRatingMax.value"
+                            step="0.1"
+                            :placeholder="store.matchRatingPlaceholder.value"
+                            @input="store.setMatchRating($event.target.value)"
+                        />
                     </label>
-                    <div v-else class="field field-span-full complete">
+                    <div
+                        v-else
+                        class="field field-span-full"
+                        :class="{ complete: store.matchFieldState.value.skill, incomplete: !store.matchFieldState.value.skill }"
+                    >
                         <span>Rating</span>
-                        <p class="note">No rating needed for unrated matches.</p>
+                        <p class="note">
+                            {{
+                                store.matchForm.value.ratingType === "Unrated"
+                                    ? "No rating needed for unrated matches."
+                                    : "Choose a sport and rating type first."
+                            }}
+                        </p>
                     </div>
                     <div class="split field-span-full">
-                        <label class="field" :class="{ complete: !!store.matchForm.value.date }">
+                        <label
+                            class="field"
+                            :class="{ complete: store.matchFieldState.value.date, incomplete: !store.matchFieldState.value.date }"
+                        >
                             <span>Date</span>
                             <input v-model="store.matchForm.value.date" type="date" />
                         </label>
-                        <label class="field" :class="{ complete: !!store.matchForm.value.time }">
+                        <label
+                            class="field"
+                            :class="{ complete: store.matchFieldState.value.time, incomplete: !store.matchFieldState.value.time }"
+                        >
                             <span>Time</span>
                             <input v-model="store.matchForm.value.time" type="time" />
                         </label>
                     </div>
+                    <p v-if="store.matchTitleTooLong.value" class="empty field-span-full">
+                        Match titles must be {{ store.MAX_MATCH_TITLE_LENGTH }} characters or fewer.
+                    </p>
                     <button
                         :class="{ 'is-ready': store.canPostMatch.value }"
                         class="field-span-full"
@@ -114,15 +169,23 @@
             </div>
         </div>
 
-        <div class="tab-row">
-            <div class="tab-group">
+        <div class="matches-header">
+            <div class="tab-row">
                 <button
                     type="button"
                     class="secondary-button tab-button"
                     :class="{ active: store.activeMatchesTab.value === 'open' }"
                     @click="store.setActiveMatchesTab('open')"
                 >
-                    Open Matches
+                    Public Matches
+                </button>
+                <button
+                    type="button"
+                    class="secondary-button tab-button"
+                    :class="{ active: store.activeMatchesTab.value === 'joined' }"
+                    @click="store.setActiveMatchesTab('joined')"
+                >
+                    Joined Matches
                 </button>
                 <button
                     type="button"
@@ -130,29 +193,38 @@
                     :class="{ active: store.activeMatchesTab.value === 'mine' }"
                     @click="store.setActiveMatchesTab('mine')"
                 >
-                    My Matches
+                    Matches Posted by You
                 </button>
             </div>
 
-            <div
-                class="toolbar"
-                :class="{ 'toolbar-hidden': store.activeMatchesTab.value !== 'open' }"
-            >
-                <label class="toolbar-label">
-                    <span>Sort by</span>
-                    <select v-model="store.matchSortMode.value">
-                        <option value="soonest">Soonest First</option>
-                        <option value="skill">Closest Skill</option>
-                        <option value="newest">Newest</option>
-                    </select>
-                </label>
-                <label class="toolbar-label">
-                    <span>Show</span>
-                    <select v-model="store.matchAvailabilityFilter.value">
-                        <option value="all">All Matches</option>
-                        <option value="available">Available Only</option>
-                    </select>
-                </label>
+            <div class="toolbar">
+                <div class="toolbar-main">
+                    <label class="toolbar-label toolbar-search">
+                        <span>Search</span>
+                        <input
+                            v-model.trim="store.matchSearchText.value"
+                            type="search"
+                            placeholder="Search titles, hosts, or courts"
+                        />
+                    </label>
+                </div>
+                <div class="toolbar-filters" :class="{ 'toolbar-hidden': store.activeMatchesTab.value !== 'open' }">
+                    <label class="toolbar-label">
+                        <span>Sort by</span>
+                        <select v-model="store.matchSortMode.value">
+                            <option value="soonest">Soonest First</option>
+                            <option value="skill">Closest Skill</option>
+                            <option value="newest">Newest</option>
+                        </select>
+                    </label>
+                    <label class="toolbar-label">
+                        <span>Show</span>
+                        <select v-model="store.matchAvailabilityFilter.value">
+                            <option value="all">All Matches</option>
+                            <option value="available">Available Only</option>
+                        </select>
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -163,7 +235,13 @@
                 class="matches-content"
             >
                 <p v-if="store.matchesLoading.value"><em>Loading matches...</em></p>
-                <p v-else-if="!store.openMatches.value.length" class="empty">No open matches right now.</p>
+                <p v-else-if="!store.openMatches.value.length" class="empty">
+                    {{
+                        store.matchSearchText.value
+                            ? "No public matches match your search."
+                            : "No public matches right now."
+                    }}
+                </p>
                 <div v-else class="stack matches-scroll">
                     <match-card
                         v-for="match in store.openMatches.value"
@@ -179,9 +257,43 @@
                 </div>
             </div>
 
+            <div
+                v-else-if="store.activeMatchesTab.value === 'joined'"
+                key="joined-matches"
+                class="matches-content"
+            >
+                <p v-if="store.matchesLoading.value"><em>Loading joined matches...</em></p>
+                <p v-else-if="!store.joinedMatches.value.length" class="empty">
+                    {{
+                        store.matchSearchText.value
+                            ? "No joined matches match your search."
+                            : "You have not joined any active matches yet."
+                    }}
+                </p>
+                <div v-else class="stack matches-scroll">
+                    <match-card
+                        v-for="match in store.joinedMatches.value"
+                        :key="match.url"
+                        :match="match"
+                        :pending-match-id="store.pendingMatchId.value"
+                        :joining-match-id="store.joiningMatchId.value"
+                        :deleting-match-id="store.deletingMatchId.value"
+                        @select-match="store.pendingMatchId.value = $event"
+                        @join-match="store.joinMatch($event)"
+                        @delete-match="store.deleteMatch($event)"
+                    ></match-card>
+                </div>
+            </div>
+
             <div v-else key="my-matches" class="matches-content">
                 <p v-if="store.matchesLoading.value"><em>Loading your matches...</em></p>
-                <p v-else-if="!store.myMatches.value.length" class="empty">You have not posted any active matches yet.</p>
+                <p v-else-if="!store.myMatches.value.length" class="empty">
+                    {{
+                        store.matchSearchText.value
+                            ? "No posted matches match your search."
+                            : "You have not posted any active matches yet."
+                    }}
+                </p>
                 <div v-else class="stack matches-scroll">
                     <match-card
                         v-for="match in store.myMatches.value"

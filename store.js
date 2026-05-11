@@ -12,6 +12,8 @@ const profileChannel = appChannelRoot;
 const chatDirectoryChannel = `${appChannelRoot}-chats`;
 const lobbyChannel = `${appChannelRoot}-match-lobby`;
 const MAX_NAME_LENGTH = 15;
+const MAX_MATCH_TITLE_LENGTH = 30;
+const MAX_ABOUT_WORDS = 50;
 const conversationReadStorageKeyPrefix = "court-connect-read-state";
 
 const emptyProfileForm = () => ({
@@ -19,14 +21,17 @@ const emptyProfileForm = () => ({
   sports: [],
   utr: "",
   utrp: "",
+  about: "",
+  instagram: "",
 });
 
 const emptyMatchForm = () => ({
-  sport: "tennis",
-  location: "MIT",
-  ratingType: "Unrated",
+  title: "",
+  sport: "",
+  location: "",
+  ratingType: "",
   rating: "",
-  format: "singles",
+  format: "",
   date: "",
   time: "",
   costPerSpot: "",
@@ -44,6 +49,8 @@ const profileSchema = {
         icon: { type: "string" },
         utr: { type: "number" },
         utrp: { type: "number" },
+        about: { type: "string" },
+        instagram: { type: "string" },
         published: { type: "number" },
       },
     },
@@ -109,6 +116,7 @@ const matchSchema = {
           properties: {
             activity: { const: "Post" },
             type: { const: "Match" },
+            title: { type: "string" },
             sport: { enum: ["tennis", "pickleball"] },
             location: { type: "string" },
             ratingType: { enum: ["UTR", "UTR-P", "Unrated"] },
@@ -144,6 +152,18 @@ function clipName(name) {
   return String(name || "").trim().slice(0, MAX_NAME_LENGTH);
 }
 
+function clipMatchTitle(title) {
+  return String(title || "").trim().slice(0, MAX_MATCH_TITLE_LENGTH);
+}
+
+function formatSportName(sport) {
+  const value = String(sport || "").trim();
+  if (!value) {
+    return "Match";
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function toOptionalNumber(value) {
   if (value === "" || value === null || value === undefined) {
     return undefined;
@@ -154,6 +174,54 @@ function toOptionalNumber(value) {
 
 function isWithinOptionalRange(value, min, max) {
   return value === undefined || (value >= min && value <= max);
+}
+
+function normalizeBoundedRatingInput(rawValue, min, max) {
+  const cleaned = String(rawValue ?? "").replace(/[^\d.]/g, "");
+  if (!cleaned) {
+    return "";
+  }
+
+  const [whole = "", ...decimalParts] = cleaned.split(".");
+  const normalized = decimalParts.length ? `${whole}.${decimalParts.join("")}` : whole;
+  const numericValue = Number(normalized);
+
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+
+  return String(Math.min(max, Math.max(min, numericValue)));
+}
+
+function normalizeAboutText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function countWords(value) {
+  const normalized = normalizeAboutText(value);
+  return normalized ? normalized.split(" ").length : 0;
+}
+
+function normalizeInstagramHandle(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  if (!/^@[A-Za-z0-9._]{1,30}$/.test(raw)) {
+    return "";
+  }
+
+  return raw.slice(1);
+}
+
+function instagramProfileUrl(handle) {
+  return handle ? `https://www.instagram.com/${handle}` : "";
+}
+
+function isValidInstagramInput(value) {
+  const raw = String(value || "").trim();
+  return !raw || /^@[A-Za-z0-9._]{1,30}$/.test(raw);
 }
 
 function dmChannel(actorA, actorB) {
@@ -217,6 +285,23 @@ function formatMatchSchedule(date, time) {
   }).format(new Date(startAt));
 }
 
+function sameStringSet(left, right) {
+  const leftItems = [...left].map(String).sort();
+  const rightItems = [...right].map(String).sort();
+
+  if (leftItems.length !== rightItems.length) {
+    return false;
+  }
+
+  return leftItems.every((item, index) => item === rightItems[index]);
+}
+
+function defaultMatchTitle(sport, location, hostName) {
+  return clipMatchTitle(
+    `${formatSportName(sport)} at ${String(location || "TBD").trim()} by ${clipName(hostName || "Player")}`,
+  );
+}
+
 function conversationReadStorageKey(actor) {
   return `${conversationReadStorageKeyPrefix}:${actor || "guest"}`;
 }
@@ -251,8 +336,6 @@ function persistConversationReadState(actor, value) {
 }
 
 function buildProfileValue(form, icon) {
-  const utr = toOptionalNumber(form.utr);
-  const utrp = toOptionalNumber(form.utrp);
   const value = {
     activity: "Create",
     type: "Profile",
@@ -264,11 +347,23 @@ function buildProfileValue(form, icon) {
   if (icon) {
     value.icon = icon;
   }
-  if (utr !== undefined) {
-    value.utr = utr;
+  if (form.sports.includes("tennis")) {
+    const utr = toOptionalNumber(form.utr);
+    if (utr !== undefined) {
+      value.utr = utr;
+    }
   }
-  if (utrp !== undefined) {
-    value.utrp = utrp;
+  if (form.sports.includes("pickleball")) {
+    const utrp = toOptionalNumber(form.utrp);
+    if (utrp !== undefined) {
+      value.utrp = utrp;
+    }
+  }
+  if (normalizeAboutText(form.about)) {
+    value.about = normalizeAboutText(form.about);
+  }
+  if (normalizeInstagramHandle(form.instagram)) {
+    value.instagram = normalizeInstagramHandle(form.instagram);
   }
 
   return value;
@@ -294,10 +389,11 @@ function buildMessageValue(content) {
   };
 }
 
-function buildMatchValue(form) {
+function buildMatchValue(form, hostName) {
   const value = {
     activity: "Post",
     type: "Match",
+    title: clipMatchTitle(form.title) || defaultMatchTitle(form.sport, form.location, hostName),
     sport: form.sport,
     location: form.location,
     ratingType: form.ratingType,
@@ -326,6 +422,59 @@ function buildJoinValue(matchId) {
   };
 }
 
+function profileEditorSignature(form) {
+  return {
+    name: clipName(form.name),
+    sports: [...form.sports].map(String).sort(),
+    utr: form.sports.includes("tennis") ? String(form.utr ?? "").trim() : "",
+    utrp: form.sports.includes("pickleball") ? String(form.utrp ?? "").trim() : "",
+    about: String(form.about ?? "").trim(),
+    instagram: String(form.instagram ?? "").trim(),
+  };
+}
+
+function buildMatchFieldStates(form, matchNeedsRating, matchRatingValid, matchCostValid) {
+  return {
+    sport: !!form.sport,
+    location: !!form.location,
+    skill: !!form.ratingType && (!matchNeedsRating || matchRatingValid),
+    format: !!form.format,
+    date: !!form.date,
+    time: !!form.time,
+    costPerSpot: matchCostValid,
+  };
+}
+
+function filterMatchesByQuery(matches, query) {
+  if (!query) {
+    return matches;
+  }
+
+  return matches.filter((match) =>
+    [
+      match.title,
+      match.hostName,
+      match.value.sport,
+      match.value.location,
+      match.ratingLabel,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+  );
+}
+
+function filterRowsByQuery(rows, query) {
+  if (!query) {
+    return rows;
+  }
+
+  return rows.filter((row) =>
+    [row.title, row.subtitle].filter(Boolean).join(" ").toLowerCase().includes(query),
+  );
+}
+
 function createCourtConnectStore() {
   const graffiti = useGraffiti();
   const session = useGraffitiSession();
@@ -346,12 +495,21 @@ function createCourtConnectStore() {
   const toast = ref(null);
   const profileError = ref("");
   const profileLoaded = ref(false);
+  const profileEditorSynced = ref(false);
+  const profileEditorBaseline = ref(profileEditorSignature(emptyProfileForm()));
   const selectedProfilePhoto = ref(null);
   const selectedProfilePhotoName = ref("");
+  const selectedProfilePhotoPreviewUrl = ref("");
+  const profilePhotoPreviewOpen = ref(false);
+  const profilePhotoPreviewSource = ref("current");
+  const lastInstagramAlertValue = ref("");
   const removeProfilePhoto = ref(false);
   const activeMatchesTab = ref("open");
+  const matchSearchText = ref("");
+  const dmSearchText = ref("");
+  const matchChatSearchText = ref("");
   const matchSortMode = ref("soonest");
-  const matchAvailabilityFilter = ref("all");
+  const matchAvailabilityFilter = ref("available");
   const postMatchCollapsed = ref(true);
   const conversationReadState = ref({});
   const currentTime = ref(Date.now());
@@ -403,22 +561,88 @@ function createCourtConnectStore() {
   const currentProfileHasPhoto = computed(
     () => !!myProfile.value?.value.icon && !removeProfilePhoto.value,
   );
+  const profilePhotoHasPendingChange = computed(
+    () => !!selectedProfilePhoto.value || removeProfilePhoto.value,
+  );
+  const profilePhotoUploadLabel = computed(() =>
+    currentProfileHasPhoto.value ? "Choose a replacement photo" : "Choose a photo",
+  );
+  const profilePhotoStatusTitle = computed(() => {
+    if (removeProfilePhoto.value) {
+      return "Photo removal pending";
+    }
+    if (selectedProfilePhoto.value && myProfile.value?.value.icon) {
+      return "New photo selected";
+    }
+    if (selectedProfilePhoto.value) {
+      return "Photo ready to add";
+    }
+    if (currentProfileHasPhoto.value) {
+      return "Current photo saved";
+    }
+    return "No profile photo yet";
+  });
+  const profilePhotoStatusText = computed(() => {
+    if (removeProfilePhoto.value) {
+      return "Your current saved photo will be removed after you save the profile.";
+    }
+    if (selectedProfilePhoto.value && myProfile.value?.value.icon) {
+      return "You selected a replacement photo. Save Profile to replace the current one.";
+    }
+    if (selectedProfilePhoto.value) {
+      return "You selected a new photo. Save Profile to add it to your profile.";
+    }
+    if (currentProfileHasPhoto.value) {
+      return "This is the photo currently saved on your profile.";
+    }
+    return "Add a profile photo if you want other players to recognize you more easily.";
+  });
+  const profilePhotoPreviewTitle = computed(() =>
+    profilePhotoPreviewSource.value === "selected"
+      ? "Selected Photo Preview"
+      : "Current Photo Preview",
+  );
+  const previewingSelectedProfilePhoto = computed(
+    () =>
+      profilePhotoPreviewSource.value === "selected" &&
+      !!selectedProfilePhotoPreviewUrl.value,
+  );
   const profileReady = computed(() => !!myProfile.value);
   const appReady = computed(() => !!session.value && profileReady.value);
   const normalizedProfileName = computed(() => clipName(profileForm.value.name).toLowerCase());
+  const normalizedMatchSearch = computed(() => String(matchSearchText.value || "").trim().toLowerCase());
+  const normalizedDmSearch = computed(() => String(dmSearchText.value || "").trim().toLowerCase());
+  const normalizedMatchChatSearch = computed(() =>
+    String(matchChatSearchText.value || "").trim().toLowerCase(),
+  );
   const nameTooLong = computed(
     () => String(profileForm.value.name || "").trim().length > MAX_NAME_LENGTH,
   );
+  const matchTitleTooLong = computed(
+    () => String(matchForm.value.title || "").trim().length > MAX_MATCH_TITLE_LENGTH,
+  );
+  const profileHasTennis = computed(() => profileForm.value.sports.includes("tennis"));
+  const profileHasPickleball = computed(() => profileForm.value.sports.includes("pickleball"));
   const profileUtr = computed(() => toOptionalNumber(profileForm.value.utr));
   const profileUtrp = computed(() => toOptionalNumber(profileForm.value.utrp));
+  const profileAboutWordCount = computed(() => countWords(profileForm.value.about));
+  const profileAboutTooLong = computed(() => profileAboutWordCount.value > MAX_ABOUT_WORDS);
+  const normalizedInstagramHandle = computed(() =>
+    normalizeInstagramHandle(profileForm.value.instagram),
+  );
+  const invalidInstagram = computed(
+    () => !isValidInstagramInput(profileForm.value.instagram),
+  );
   const invalidUtr = computed(() => {
     return (
+      profileHasTennis.value &&
       profileForm.value.utr !== "" &&
-      !isWithinOptionalRange(profileUtr.value, 1, 16)
+      !isWithinOptionalRange(profileUtr.value, 1, 16.5)
     );
   });
   const invalidUtrp = computed(() => {
     return (
+      profileHasPickleball.value &&
       profileForm.value.utrp !== "" &&
       !isWithinOptionalRange(profileUtrp.value, 1, 10)
     );
@@ -436,12 +660,34 @@ function createCourtConnectStore() {
     );
   });
 
+  const profileDirty = computed(() => {
+    const current = profileEditorSignature(profileForm.value);
+    const baseline = profileEditorBaseline.value;
+    const formChanged =
+      current.name !== baseline.name ||
+      !sameStringSet(current.sports, baseline.sports) ||
+      current.utr !== baseline.utr ||
+      current.utrp !== baseline.utrp ||
+      current.about !== baseline.about ||
+      current.instagram !== baseline.instagram;
+
+    return (
+      formChanged ||
+      !!selectedProfilePhoto.value ||
+      (removeProfilePhoto.value && !!myProfile.value?.value.icon)
+    );
+  });
+
   const canSaveProfile = computed(() => {
     return (
+      profileEditorSynced.value &&
       !!clipName(profileForm.value.name) &&
       profileForm.value.sports.length > 0 &&
+      profileDirty.value &&
       !duplicateName.value &&
       !nameTooLong.value &&
+      !profileAboutTooLong.value &&
+      !invalidInstagram.value &&
       !invalidUtr.value &&
       !invalidUtrp.value
     );
@@ -547,9 +793,13 @@ function createCourtConnectStore() {
           match.value.ratingType === "Unrated"
             ? "Unrated"
             : `${match.value.ratingType} ${match.value.rating}`;
+        const title =
+          clipMatchTitle(match.value.title) ||
+          defaultMatchTitle(match.value.sport, match.value.location, profileNames.value[match.actor]);
 
         return {
           ...match,
+          title,
           joinCount,
           mine: match.actor === myActor.value,
           joined: joinedActors.includes(myActor.value),
@@ -671,19 +921,35 @@ function createCourtConnectStore() {
       }));
   });
 
-  const matchNeedsRating = computed(() => matchForm.value.ratingType !== "Unrated");
+  const matchNeedsRating = computed(
+    () => !!matchForm.value.ratingType && matchForm.value.ratingType !== "Unrated",
+  );
+  const matchSupportsTennisRating = computed(() => matchForm.value.sport === "tennis");
+  const matchSupportsPickleballRating = computed(() => matchForm.value.sport === "pickleball");
+  const matchRatingLabel = computed(() =>
+    matchForm.value.ratingType === "UTR-P" ? "Rating (1.0-10.0)" : "Rating (1.0-16.5)",
+  );
+  const matchRatingPlaceholder = computed(() =>
+    matchForm.value.ratingType === "UTR-P" ? "1.0 to 10.0" : "1.0 to 16.5",
+  );
+  const matchRatingMin = computed(() => 1);
+  const matchRatingMax = computed(() => (matchForm.value.ratingType === "UTR-P" ? 10 : 16.5));
 
   const matchSkillReady = computed(() => {
     return !!matchForm.value.ratingType && matchRatingValid.value;
   });
 
   const matchRatingValid = computed(() => {
-    if (!matchNeedsRating.value) {
+    if (!matchForm.value.ratingType || !matchNeedsRating.value) {
       return true;
     }
 
     const rating = Number(matchForm.value.rating);
-    return Number.isFinite(rating) && rating >= 1 && rating <= 16;
+    if (matchForm.value.ratingType === "UTR-P") {
+      return Number.isFinite(rating) && rating >= 1 && rating <= 10;
+    }
+
+    return Number.isFinite(rating) && rating >= 1 && rating <= 16.5;
   });
 
   const matchCostValid = computed(() => {
@@ -698,6 +964,7 @@ function createCourtConnectStore() {
     return (
       !!matchForm.value.sport &&
       !!matchForm.value.location &&
+      !!matchForm.value.ratingType &&
       !!matchForm.value.format &&
       !!matchForm.value.date &&
       !!matchForm.value.time &&
@@ -707,15 +974,14 @@ function createCourtConnectStore() {
   });
 
   const matchFormProgress = computed(() => {
-    const completed = [
-      !!matchForm.value.sport,
-      !!matchForm.value.location,
-      matchSkillReady.value,
-      !!matchForm.value.format,
-      !!matchForm.value.date,
-      !!matchForm.value.time,
-      matchCostValid.value,
-    ].filter(Boolean).length;
+    const completed = Object.values(
+      buildMatchFieldStates(
+        matchForm.value,
+        matchNeedsRating.value,
+        matchRatingValid.value,
+        matchCostValid.value,
+      ),
+    ).filter(Boolean).length;
 
     return completed / 7;
   });
@@ -725,19 +991,27 @@ function createCourtConnectStore() {
   });
 
   const matchFormProgressLabel = computed(() => {
-    const completedSteps = [
-      !!matchForm.value.sport,
-      !!matchForm.value.location,
-      matchSkillReady.value,
-      !!matchForm.value.format,
-      !!matchForm.value.date,
-      !!matchForm.value.time,
-      matchCostValid.value,
-    ].filter(Boolean).length;
+    const completedSteps = Object.values(
+      buildMatchFieldStates(
+        matchForm.value,
+        matchNeedsRating.value,
+        matchRatingValid.value,
+        matchCostValid.value,
+      ),
+    ).filter(Boolean).length;
     return canPostMatch.value
       ? "All core details are ready to post."
       : `${completedSteps} of 7 required details complete`;
   });
+
+  const matchFieldState = computed(() =>
+    buildMatchFieldStates(
+      matchForm.value,
+      matchNeedsRating.value,
+      matchRatingValid.value,
+      matchCostValid.value,
+    ),
+  );
 
   function getViewerComparableRating(match) {
     if (match.value.ratingType === "UTR") {
@@ -774,11 +1048,11 @@ function createCourtConnectStore() {
     return b.value.published - a.value.published;
   }
 
-  const openMatches = computed(() => {
-    let matches = matchCards.value.filter((match) => !match.mine);
+  const filteredOpenMatches = computed(() => {
+    let matches = matchCards.value.filter((match) => !match.mine && !match.joined);
 
     if (matchAvailabilityFilter.value === "available") {
-      matches = matches.filter((match) => !match.full && !match.joined);
+      matches = matches.filter((match) => !match.full);
     }
 
     if (matchSortMode.value === "newest") {
@@ -806,8 +1080,34 @@ function createCourtConnectStore() {
     return matches.toSorted(compareBySoonest);
   });
 
-  const myMatches = computed(() => {
-    return matchCards.value.filter((match) => match.mine).toSorted(compareBySoonest);
+  const openMatches = computed(() =>
+    filterMatchesByQuery(filteredOpenMatches.value, normalizedMatchSearch.value),
+  );
+
+  const joinedMatches = computed(() =>
+    filterMatchesByQuery(
+      matchCards.value
+        .filter((match) => match.joined && !match.mine)
+        .toSorted(compareBySoonest),
+      normalizedMatchSearch.value,
+    ),
+  );
+
+  const myMatches = computed(() =>
+    filterMatchesByQuery(
+      matchCards.value.filter((match) => match.mine).toSorted(compareBySoonest),
+      normalizedMatchSearch.value,
+    ),
+  );
+
+  const visibleMatches = computed(() => {
+    if (activeMatchesTab.value === "joined") {
+      return joinedMatches.value;
+    }
+    if (activeMatchesTab.value === "mine") {
+      return myMatches.value;
+    }
+    return openMatches.value;
   });
 
   function previewMessageContent(content) {
@@ -871,7 +1171,7 @@ function createCourtConnectStore() {
 
         return {
           matchId: match.value.matchId,
-          title: `${clipName(match.value.sport)} at ${match.value.location}`,
+          title: match.title,
           subtitle:
             previewMessageContent(latestMessage?.value.content) ||
             `Hosted by ${match.hostName}`,
@@ -892,30 +1192,51 @@ function createCourtConnectStore() {
       });
   });
 
+  const filteredDmRows = computed(() => filterRowsByQuery(dmRows.value, normalizedDmSearch.value));
+  const filteredMatchChatRows = computed(() =>
+    filterRowsByQuery(matchChatRows.value, normalizedMatchChatSearch.value),
+  );
+
   const hasUnreadConversations = computed(() => {
     return (
       dmRows.value.some((row) => row.unread) || matchChatRows.value.some((row) => row.unread)
     );
   });
 
+  function resetProfileEditor() {
+    const profile = myProfile.value;
+
+    if (profile) {
+      profileForm.value = {
+        name: clipName(profile.value.name),
+        sports: [...profile.value.sports],
+        utr: profile.value.utr ?? "",
+        utrp: profile.value.utrp ?? "",
+        about: profile.value.about ?? "",
+        instagram: profile.value.instagram ? `@${profile.value.instagram}` : "",
+      };
+      profileLoaded.value = true;
+    } else {
+      profileForm.value = emptyProfileForm();
+      profileLoaded.value = false;
+    }
+
+    clearSelectedProfilePhoto();
+    removeProfilePhoto.value = false;
+    profileError.value = "";
+    profileEditorBaseline.value = profileEditorSignature(profileForm.value);
+    profileEditorSynced.value = true;
+  }
+
   watch(
     myProfile,
     (profile) => {
       if (profile && !profileLoaded.value) {
-        profileForm.value = {
-          name: clipName(profile.value.name),
-          sports: [...profile.value.sports],
-          utr: profile.value.utr ?? "",
-          utrp: profile.value.utrp ?? "",
-        };
-        selectedProfilePhoto.value = null;
-        selectedProfilePhotoName.value = "";
-        removeProfilePhoto.value = false;
-        profileLoaded.value = true;
+        resetProfileEditor();
       }
 
       if (!profile && !session.value) {
-        profileForm.value = emptyProfileForm();
+        resetProfileEditor();
       }
     },
     { immediate: true },
@@ -926,15 +1247,63 @@ function createCourtConnectStore() {
     () => {
       conversationReadState.value = loadConversationReadState(myActor.value);
       profileLoaded.value = false;
+      profileEditorSynced.value = false;
       profileForm.value = emptyProfileForm();
-      selectedProfilePhoto.value = null;
-      selectedProfilePhotoName.value = "";
+      profileEditorBaseline.value = profileEditorSignature(profileForm.value);
+      clearSelectedProfilePhoto();
       removeProfilePhoto.value = false;
       profileError.value = "";
       clearActiveChat();
       pendingMatchId.value = "";
     },
     { immediate: true },
+  );
+
+  watch(
+    () => profileForm.value.sports.slice(),
+    (sports) => {
+      if (!sports.includes("tennis")) {
+        profileForm.value.utr = "";
+      }
+      if (!sports.includes("pickleball")) {
+        profileForm.value.utrp = "";
+      }
+    },
+    { deep: true },
+  );
+
+  watch(
+    () => profileForm.value.instagram,
+    (instagram) => {
+      if (isValidInstagramInput(instagram)) {
+        lastInstagramAlertValue.value = "";
+      }
+    },
+  );
+
+  watch(
+    () => matchForm.value.sport,
+    (sport) => {
+      if (sport === "tennis" && matchForm.value.ratingType === "UTR-P") {
+        matchForm.value.ratingType = "";
+        matchForm.value.rating = "";
+      } else if (sport === "pickleball" && matchForm.value.ratingType === "UTR") {
+        matchForm.value.ratingType = "";
+        matchForm.value.rating = "";
+      } else if (!sport) {
+        matchForm.value.ratingType = "";
+        matchForm.value.rating = "";
+      }
+    },
+  );
+
+  watch(
+    () => matchForm.value.ratingType,
+    (ratingType) => {
+      if (!ratingType || ratingType === "Unrated") {
+        matchForm.value.rating = "";
+      }
+    },
   );
 
   watch(
@@ -963,24 +1332,90 @@ function createCourtConnectStore() {
     return profilesByActor.value[actor];
   }
 
+  function revokeSelectedProfilePhotoPreview() {
+    if (
+      selectedProfilePhotoPreviewUrl.value &&
+      typeof URL !== "undefined" &&
+      typeof URL.revokeObjectURL === "function"
+    ) {
+      URL.revokeObjectURL(selectedProfilePhotoPreviewUrl.value);
+    }
+    selectedProfilePhotoPreviewUrl.value = "";
+  }
+
+  function clearSelectedProfilePhoto() {
+    revokeSelectedProfilePhotoPreview();
+    selectedProfilePhoto.value = null;
+    selectedProfilePhotoName.value = "";
+    profilePhotoPreviewOpen.value = false;
+    profilePhotoPreviewSource.value = "current";
+  }
+
   function handleProfilePhotoSelect(event) {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
+    revokeSelectedProfilePhotoPreview();
     selectedProfilePhoto.value = file;
     selectedProfilePhotoName.value = file.name;
+    selectedProfilePhotoPreviewUrl.value =
+      typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+        ? URL.createObjectURL(file)
+        : "";
+    profilePhotoPreviewOpen.value = false;
+    profilePhotoPreviewSource.value = "selected";
     removeProfilePhoto.value = false;
+    event.target.value = "";
+  }
+
+  function openCurrentProfilePhotoPreview() {
+    if (currentProfilePhotoUrl.value) {
+      profilePhotoPreviewSource.value = "current";
+      profilePhotoPreviewOpen.value = true;
+    }
+  }
+
+  function openSelectedProfilePhotoPreview() {
+    if (selectedProfilePhotoPreviewUrl.value) {
+      profilePhotoPreviewSource.value = "selected";
+      profilePhotoPreviewOpen.value = true;
+    }
+  }
+
+  function closeSelectedProfilePhotoPreview() {
+    profilePhotoPreviewOpen.value = false;
   }
 
   function markProfilePhotoForRemoval() {
-    selectedProfilePhoto.value = null;
-    selectedProfilePhotoName.value = "";
+    clearSelectedProfilePhoto();
     removeProfilePhoto.value = true;
   }
 
   function keepCurrentProfilePhoto() {
     removeProfilePhoto.value = false;
+  }
+
+  function discardSelectedProfilePhoto() {
+    clearSelectedProfilePhoto();
+  }
+
+  function maybeAlertInvalidInstagram(force = false) {
+    const raw = String(profileForm.value.instagram || "").trim();
+    if (!raw || isValidInstagramInput(raw)) {
+      lastInstagramAlertValue.value = "";
+      return false;
+    }
+
+    if (!force && lastInstagramAlertValue.value === raw) {
+      return true;
+    }
+
+    lastInstagramAlertValue.value = raw;
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert("Instagram must use the format @username.");
+    }
+    return true;
   }
 
   function togglePostMatchCollapsed() {
@@ -989,6 +1424,30 @@ function createCourtConnectStore() {
 
   function setActiveMatchesTab(tab) {
     activeMatchesTab.value = tab;
+  }
+
+  function setProfileRating(field, rawValue) {
+    if (field === "utr") {
+      profileForm.value.utr = normalizeBoundedRatingInput(rawValue, 1, 16.5);
+      return;
+    }
+
+    if (field === "utrp") {
+      profileForm.value.utrp = normalizeBoundedRatingInput(rawValue, 1, 10);
+    }
+  }
+
+  function setMatchRating(rawValue) {
+    if (!matchForm.value.ratingType || matchForm.value.ratingType === "Unrated") {
+      matchForm.value.rating = "";
+      return;
+    }
+
+    matchForm.value.rating = normalizeBoundedRatingInput(
+      rawValue,
+      1,
+      matchForm.value.ratingType === "UTR-P" ? 10 : 16.5,
+    );
   }
 
   function refreshConversationReadState() {
@@ -1068,8 +1527,13 @@ function createCourtConnectStore() {
         profileError.value = `Usernames must be ${MAX_NAME_LENGTH} characters or fewer.`;
       } else if (duplicateName.value) {
         profileError.value = "That nickname is already taken.";
+      } else if (profileAboutTooLong.value) {
+        profileError.value = `About Me must be ${MAX_ABOUT_WORDS} words or fewer.`;
+      } else if (invalidInstagram.value) {
+        maybeAlertInvalidInstagram(true);
+        profileError.value = "";
       } else if (invalidUtr.value) {
-        profileError.value = "UTR must be between 1 and 16.";
+        profileError.value = "UTR must be between 1 and 16.5.";
       } else if (invalidUtrp.value) {
         profileError.value = "UTR-P must be between 1 and 10.";
       }
@@ -1119,10 +1583,13 @@ function createCourtConnectStore() {
         }
       }
 
-      selectedProfilePhoto.value = null;
-      selectedProfilePhotoName.value = "";
+      clearSelectedProfilePhoto();
       removeProfilePhoto.value = false;
       profileLoaded.value = true;
+      profileEditorBaseline.value = profileEditorSignature(profileForm.value);
+      profileEditorSynced.value = true;
+      showToast("Profile saved.");
+      await refreshProfiles();
 
       return {
         ok: true,
@@ -1264,17 +1731,22 @@ function createCourtConnectStore() {
 
     postingMatch.value = true;
     try {
-      const postedSport = matchForm.value.sport;
-      const postedLocation = matchForm.value.location;
+      const matchTitle =
+        clipMatchTitle(matchForm.value.title) ||
+        defaultMatchTitle(
+          matchForm.value.sport,
+          matchForm.value.location,
+          profileNames.value[myActor.value],
+        );
       await graffiti.post(
         {
-          value: buildMatchValue(matchForm.value),
+          value: buildMatchValue(matchForm.value, profileNames.value[myActor.value]),
           channels: [lobbyChannel],
         },
         session.value,
       );
       matchForm.value = emptyMatchForm();
-      showToast(`${clipName(postedSport)} match posted for ${postedLocation}.`);
+      showToast(`${matchTitle} posted.`);
       await refreshMatches();
     } finally {
       postingMatch.value = false;
@@ -1303,7 +1775,7 @@ function createCourtConnectStore() {
         session.value,
       );
       pendingMatchId.value = "";
-      showToast(`Joined ${clipName(currentMatch.value.sport)} match at ${currentMatch.value.location}.`);
+      showToast(`Joined ${currentMatch.title}.`);
       await refreshMatches();
     } finally {
       joiningMatchId.value = "";
@@ -1329,6 +1801,8 @@ function createCourtConnectStore() {
 
   return {
     MAX_NAME_LENGTH,
+    MAX_MATCH_TITLE_LENGTH,
+    MAX_ABOUT_WORDS,
     session,
     profileForm,
     matchForm,
@@ -1351,12 +1825,29 @@ function createCourtConnectStore() {
     profilesByActor,
     currentProfilePhotoUrl,
     currentProfileHasPhoto,
+    profileEditorSynced,
+    profilePhotoHasPendingChange,
+    profilePhotoUploadLabel,
+    profilePhotoStatusTitle,
+    profilePhotoStatusText,
     selectedProfilePhotoName,
+    selectedProfilePhotoPreviewUrl,
+    profilePhotoPreviewTitle,
+    previewingSelectedProfilePhoto,
+    profilePhotoPreviewOpen,
     removeProfilePhoto,
     profileReady,
     appReady,
+    profileHasTennis,
+    profileHasPickleball,
+    profileDirty,
+    profileAboutWordCount,
+    profileAboutTooLong,
+    normalizedInstagramHandle,
+    invalidInstagram,
     duplicateName,
     nameTooLong,
+    matchTitleTooLong,
     invalidUtr,
     invalidUtrp,
     canSaveProfile,
@@ -1371,27 +1862,49 @@ function createCourtConnectStore() {
     sortedMessages,
     matchCards,
     openMatches,
+    joinedMatches,
     myMatches,
+    visibleMatches,
     dmRows,
     matchChatRows,
+    filteredDmRows,
+    filteredMatchChatRows,
     hasUnreadConversations,
     activeMatchesTab,
+    matchSearchText,
+    dmSearchText,
+    matchChatSearchText,
     matchSortMode,
     matchAvailabilityFilter,
     postMatchCollapsed,
     matchNeedsRating,
+    matchSupportsTennisRating,
+    matchSupportsPickleballRating,
     canPostMatch,
     matchRatingValid,
+    matchRatingLabel,
+    matchRatingPlaceholder,
+    matchRatingMin,
+    matchRatingMax,
     matchCostValid,
     matchFormProgress,
     matchFormProgressPercent,
     matchFormProgressLabel,
+    matchFieldState,
     getProfileByActor,
     handleProfilePhotoSelect,
+    openCurrentProfilePhotoPreview,
+    openSelectedProfilePhotoPreview,
+    closeSelectedProfilePhotoPreview,
     markProfilePhotoForRemoval,
     keepCurrentProfilePhoto,
+    discardSelectedProfilePhoto,
+    maybeAlertInvalidInstagram,
+    resetProfileEditor,
     togglePostMatchCollapsed,
     setActiveMatchesTab,
+    setProfileRating,
+    setMatchRating,
     refreshConversationReadState,
     refreshProfiles,
     refreshChats,
